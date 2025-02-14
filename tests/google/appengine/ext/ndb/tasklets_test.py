@@ -82,7 +82,7 @@ class TaskletTests(test_utils.NDBTest):
 
   def setUp(self):
     super(TaskletTests, self).setUp()
-    eventloop._state.event_loop = None
+    eventloop._set_event_loop(None)
     tasklets._state.reset(None)
     self.ev = eventloop.get_event_loop()
     self.log = []
@@ -232,8 +232,8 @@ class TaskletTests(test_utils.NDBTest):
     clock = MockClock()
     log = []
 
-    eventloop.get_event_loop()
-    eventloop._state.event_loop = eventloop.EventLoop(clock)
+    # eventloop.get_event_loop()
+    eventloop._set_event_loop(eventloop.EventLoop(clock))
 
     @tasklets.tasklet
     def foo():

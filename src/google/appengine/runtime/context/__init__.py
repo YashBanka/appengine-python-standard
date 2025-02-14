@@ -17,6 +17,7 @@
 """Wrapper for contextvars that can fall back to old os.environ hack."""
 import contextvars
 import functools
+import itertools
 import os
 from typing import Dict
 
@@ -63,3 +64,48 @@ def init_from_wsgi_environ(
       **gae_headers.init_from_wsgi_environ(wsgi_env),
       **wsgi.init_from_wsgi_environ(wsgi_env),
   }
+
+
+class _RequestContextSnapshot:
+  """GAE4G request context that can be used in a separate thread.
+
+  Note that this context can't live longer than the request, so the main thread
+  scheduled this thread should wait for it to finish before returning response.
+  """
+
+  def __init__(self, dct=None):
+    self._context = dct or {}
+    self._restore_tokens = {}
+
+  def __enter__(self):
+    for ctxvar, token in self._context.items():
+      self._restore_tokens[ctxvar] = ctxvar.set(token)
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    for ctxvar, token in self._restore_tokens.items():
+      ctxvar.set(token)
+    self._restore_tokens = {}
+
+  def run(self, f, *args, **kwargs):
+    with self:
+      return f(*args, **kwargs)
+
+
+def get_request_context_snapshot() -> _RequestContextSnapshot:
+  """Returns a copy of the current request context."""
+  if READ_FROM_OS_ENVIRON:
+    return _RequestContextSnapshot()
+
+  snapshot = {}
+  for ctxvar in (
+      v for v
+      in itertools.chain(
+          gae_headers.__dict__.values(), wsgi.__dict__.values())
+      if isinstance(v, contextvars.ContextVar)):
+    try:
+      var = ctxvar.get()
+      snapshot[ctxvar] = var
+    except LookupError:
+      pass
+  return _RequestContextSnapshot(snapshot)

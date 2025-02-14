@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-#
-# Copyright 2007 Google LLC
+# Copyright 2008 The ndb Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 """An event loop.
 
@@ -42,7 +26,6 @@ The API here is inspired by Monocle.
 
 import collections
 import contextvars
-import threading
 import time
 
 from google.appengine.ext.ndb import utils
@@ -98,7 +81,7 @@ class EventLoop(object):
     self.clock = clock or _Clock()
     self.current = collections.deque()
     self.idlers = collections.deque()
-    self.inactive = 0
+    self.inactive = 0  # How many idlers in a row were no-ops
     self.queue = []
     self.rpcs = {}
 
@@ -158,7 +141,7 @@ class EventLoop(object):
     if delay < 1e9:
       when = delay + self.clock.now()
     else:
-
+      # Times over a billion seconds are assumed to be absolute.
       when = delay
     self.insort_event_right((when, callback, args, kwds))
 
@@ -178,16 +161,16 @@ class EventLoop(object):
     if isinstance(rpc, datastore_rpc.MultiRpc):
       rpcs = rpc.rpcs
       if len(rpcs) > 1:
-
+        # Don't call the callback until all sub-rpcs have completed.
         rpc.__done = False
 
-
+        # pylint: disable=dangerous-default-value,protected-access
         def help_multi_rpc_along(r=rpc, c=callback, a=args, k=kwds):
           if r.state == _FINISHING and not r.__done:
             r.__done = True
             c(*a, **k)
-
-
+            # TODO: And again, what about exceptions?
+        # pylint: enable=dangerous-default-value,protected-access
         callback = help_multi_rpc_along
         args = ()
         kwds = {}
@@ -222,7 +205,7 @@ class EventLoop(object):
     callback, args, kwds = idler
     _logging_debug('idler: %s', callback.__name__)
     res = callback(*args, **kwds)
-
+    # See add_idle() for the meaning of the callback return value.
     if res is not None:
       if res:
         self.inactive = 0
@@ -256,15 +239,15 @@ class EventLoop(object):
         _, callback, args, kwds = self.queue.pop(0)
         _logging_debug('event: %s', callback.__name__)
         callback(*args, **kwds)
-
+        # TODO: What if it raises an exception?
         return 0
     if self.rpcs:
       self.inactive = 0
       rpc = datastore_rpc.MultiRpc.wait_any(self.rpcs)
       if rpc is not None:
         _logging_debug('rpc: %s.%s', rpc.service, rpc.method)
-
-
+        # Yes, wait_any() may return None even for a non-empty argument.
+        # But no, it won't ever return an RPC not in its argument.
         if rpc not in self.rpcs:
           raise RuntimeError('rpc %r was not given to wait_any as a choice %r' %
                              (rpc, self.rpcs))
@@ -272,7 +255,7 @@ class EventLoop(object):
         del self.rpcs[rpc]
         if callback is not None:
           callback(*args, **kwds)
-
+          # TODO: Again, what about exceptions?
       return 0
     return delay
 
@@ -291,26 +274,20 @@ class EventLoop(object):
 
   def run(self):
     """Run until there's nothing left to do."""
-
+    # TODO: A way to stop running before the queue is empty.
     self.inactive = 0
     while True:
       if not self.run1():
         break
 
 
-class _State(threading.local):
-  event_loop = None
-
 _TESTBED_RESET_TOKEN = None
-_EVENT_LOOP_EXISTS = contextvars.ContextVar('ndb.eventloop', default=False)
-
-_state = _State()
+_EVENT_LOOP = contextvars.ContextVar('ndb.eventloop', default=None)
 
 
 def _set_event_loop(ev: EventLoop):
   global _TESTBED_RESET_TOKEN
-  _state.event_loop = ev
-  token = _EVENT_LOOP_EXISTS.set(True)
+  token = _EVENT_LOOP.set(ev)
   if _TESTBED_RESET_TOKEN is None:
     _TESTBED_RESET_TOKEN = token
 
@@ -322,11 +299,7 @@ def get_event_loop():
   that we're in a new request by inspecting os.environ, which is reset
   at the start of each request.  Also, each thread gets its own loop.
   """
-  ev = _state.event_loop
-  if not _EVENT_LOOP_EXISTS.get() and ev is not None:
-    ev.clear()
-    _state.event_loop = None
-    ev = None
+  ev = _EVENT_LOOP.get()
   if ev is None:
     ev = EventLoop()
     _set_event_loop(ev)
@@ -361,3 +334,4 @@ def run1():
 def run0():
   ev = get_event_loop()
   return ev.run0()
+

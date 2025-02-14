@@ -431,7 +431,7 @@ class Testbed(object):
         namespace_manager._CURRENT_NAMESPACE:
             namespace_manager._TESTBED_RESET_TOKEN,
         **tasklets._TESTBED_RESET_TOKENS,
-        eventloop._EVENT_LOOP_EXISTS: eventloop._TESTBED_RESET_TOKEN,
+        eventloop._EVENT_LOOP: eventloop._TESTBED_RESET_TOKEN,
     }
 
     for ctxvar, token in all_reset_tokens.items():
