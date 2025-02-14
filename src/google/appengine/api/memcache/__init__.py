@@ -1737,6 +1737,7 @@ def setup_client(client_obj):
   var_dict['debuglog'] = _CLIENT.debuglog
   var_dict['get'] = _CLIENT.get
   var_dict['get_multi'] = _CLIENT.get_multi
+  var_dict['get_multi_async'] = _CLIENT.get_multi_async
   var_dict['set'] = _CLIENT.set
   var_dict['set_multi'] = _CLIENT.set_multi
   var_dict['add'] = _CLIENT.add
