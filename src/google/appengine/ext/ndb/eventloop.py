@@ -16,18 +16,6 @@
 #
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 """An event loop.
 
 This event loop should handle both asynchronous App Engine RPC objects
@@ -299,8 +287,6 @@ class EventLoop(object):
 
 _TESTBED_RESET_TOKEN = None
 _EVENT_LOOP = contextvars.ContextVar('ndb.eventloop', default=None)
-
-_state = _State()
 
 
 def _set_event_loop(ev: EventLoop):
