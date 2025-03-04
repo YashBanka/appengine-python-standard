@@ -1,4 +1,6 @@
-# Copyright 2008 The ndb Authors. All Rights Reserved.
+#!/usr/bin/env python
+#
+# Copyright 2007 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +13,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 """Tests for eventloop.py."""
 import logging
@@ -19,7 +35,7 @@ import time
 from google.appengine.api import apiproxy_stub_map
 from google.appengine.datastore import datastore_rpc
 
-from google3.testing.pybase import googletest as unittest
+from absl.testing import absltest as unittest
 
 from google.appengine.ext.ndb import eventloop
 from google.appengine.ext.ndb import test_utils
@@ -61,7 +77,7 @@ class EventLoopTests(test_utils.NDBTest):
     self.assertEqual(k1, {'unused_a': 1, 'unused_b': 2})
     self.assertEqual(k2, {})
     self.assertEqual(k3, {'unused_c': 3, 'unused_d': 4})
-    # Delete queued events (they would fail or take a long time).
+
     ev = eventloop.get_event_loop()
     ev.queue = []
     ev.rpcs = {}
@@ -77,16 +93,16 @@ class EventLoopTests(test_utils.NDBTest):
 
     self.assertEqual(len(self.ev.current), 2)
     self.assertEqual(len(self.ev.queue), 1)
-    # pylint: disable=invalid-name
+
     [(_f1, a1, _k1), (_f2, a2, _k2)] = self.ev.current
-    self.assertEqual(a1, (2,))  # first event should have arg = 2
-    self.assertEqual(a2, (1,))  # second event should have arg = 1
+    self.assertEqual(a1, (2,))
+    self.assertEqual(a2, (1,))
     (_t, _f, a, _k) = self.ev.queue[0]
-    # pylint: enable=invalid-name
-    self.assertEqual(a, (0,))  # third event should have arg = 0
+
+    self.assertEqual(a, (0,))
 
     eventloop.run()
-    # test that events are executed in FIFO order, not sort order
+
     self.assertEqual(order, [2, 1, 0])
 
   def testRun(self):
@@ -113,7 +129,7 @@ class EventLoopTests(test_utils.NDBTest):
     eventloop.queue_rpc(rpc)
     eventloop.run()
     self.assertEqual(record, [rpc, 42])
-    self.assertEqual(rpc.state, 2)  # TODO: Use apiproxy_rpc.RPC.FINISHING.
+    self.assertEqual(rpc.state, 2)
 
   def testIdle(self):
     counters = [0, 0, 0]
@@ -158,7 +174,7 @@ class EventLoopTests(test_utils.NDBTest):
     self.assertEqual(calls, [1])
 
   def testCleanUpStaleEvents(self):
-    # See issue 127.  http://goo.gl/2p5Pn
+
     from google.appengine.ext.ndb import model
 
     class M(model.Model):
@@ -166,17 +182,16 @@ class EventLoopTests(test_utils.NDBTest):
     M().put()
     M().put()
     M().put()
-    # The fetch_page() call leaves an unnecessary but unavoidable RPC
-    # around that is never waited for.  This was causing problems when
-    # it was being garbage-collected in get_event_loop(), especially
-    # with Python 2.5, where GeneratorExit derived from Exception.
+
+
+
+
     M.query().fetch_page(2)
     ev = eventloop.get_event_loop()
     self.assertEqual(len(ev.rpcs), 1)
     eventloop._set_event_loop(None)
-    ev = eventloop.get_event_loop()  # A new event loop.
+    ev = eventloop.get_event_loop()
     self.assertEqual(len(ev.rpcs), 0)
 
 if __name__ == '__main__':
   unittest.main()
-

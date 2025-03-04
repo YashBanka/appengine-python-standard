@@ -65,7 +65,6 @@ def init_from_wsgi_environ(
       **wsgi.init_from_wsgi_environ(wsgi_env),
   }
 
-
 class _RequestContextSnapshot:
   """GAE4G request context that can be used in a separate thread.
 
